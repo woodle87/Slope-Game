@@ -11,14 +11,14 @@ let player, bot, ball;
 let playerImgs = {}, botImgs = {};
 let keys = {};
 
-let target = {x:720, y:200, w:20, h:50}; // trash can
+let target = {x:720, y:200, w:20, h:50}; // trash can hoop
 
 function preload() {
-  // Load your SVGs (must be in same folder or hosted online)
-  playerImgs.idle = loadImage("costume1 (1).svg"); 
+  // Load your SVGs (keep them in same folder or host online)
+  playerImgs.idle = loadImage("costume1 (1).svg"); // standing with ball
   playerImgs.run1 = loadImage("costume3.svg"); 
   playerImgs.run2 = loadImage("costume4.svg"); 
-  playerImgs.shoot = loadImage("costume1 (1).svg"); // temp shooting sprite
+  playerImgs.shoot = loadImage("costume1 (1).svg"); // temp until arms-up edit
 
   botImgs.idle = loadImage("costume1 (1).svg");
   botImgs.run1 = loadImage("costume3.svg");
@@ -47,7 +47,7 @@ function draw() {
   ball.update();
   ball.show();
 
-  // SCORE CHECK (auto-score if ball enters trash can area)
+  // --- AUTO AIM SCORING ---
   if (
     !ball.heldBy &&
     ball.x > target.x &&
