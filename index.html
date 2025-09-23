@@ -1,147 +1,183 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Slope Clone</title>
-<style>
-  html, body { margin:0; padding:0; overflow:hidden; background:#87ceeb; }
-  canvas { display:block; margin:0 auto; background:#87ceeb; }
-</style>
+  <meta charset="UTF-8">
+  <title>Classroom Basketball</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 </head>
 <body>
-<canvas id="game"></canvas>
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+let player, bot, ball;
+let keys = {};
+let target; // trash can
 
-let track = [];
-let ball = { x:0, y:0, lane:1, speed:0.6 };
-const lanes = 3;
-const laneWidth = 100;
-const trackLength = 100;
-const trackHeight = 20;
-const obstacles = [];
-let score = 0;
+function setup() {
+  createCanvas(800, 400);
 
-// Initialize track
-for(let i=0;i<trackLength;i++){
-  track.push({ z:i*trackHeight });
+  player = new Character(100, 300, "blue");
+  bot = new Character(500, 300, "red", true);
+  ball = new Ball(120, 300);
+
+  // Trash can target area
+  target = {x: 720, y: 200, w: 20, h: 50};
 }
 
-// Initialize obstacles
-function spawnObstacle() {
-  const lane = Math.floor(Math.random()*lanes);
-  const z = trackLength*trackHeight + Math.random()*500 + 200;
-  obstacles.push({ lane, z });
+function draw() {
+  background(230);
+
+  // Classroom background
+  drawClassroom();
+
+  // Update characters
+  player.update();
+  player.show();
+
+  bot.update();
+  bot.show();
+
+  // Update ball
+  ball.update();
+  ball.show();
+
+  // Scoring check
+  if (
+    ball.x > target.x &&
+    ball.x < target.x + target.w &&
+    ball.y > target.y &&
+    ball.y < target.y + target.h
+  ) {
+    if (ball.lastHolder) {
+      ball.lastHolder.points++;
+    }
+    resetBall();
+  }
+
+  // Scoreboard
+  fill(0);
+  textSize(20);
+  textAlign(CENTER);
+  text(player.points + " - " + bot.points, width/2, 30);
 }
 
-// Draw green track with stripes
-function drawTrack(){
-  for(let i=0;i<track.length;i++){
-    const t = track[i];
-    const perspective = 800/(t.z+50);
-    const trackW = laneWidth*lanes*perspective;
-    const x = canvas.width/2 - trackW/2;
-    const y = canvas.height - perspective*50 - 50;
-    
-    // Draw track rectangle
-    ctx.fillStyle="#2ecc71";
-    ctx.fillRect(x, y, trackW, perspective*trackHeight);
-    
-    // Draw lane stripes
-    ctx.strokeStyle="#a3ffa3";
-    ctx.lineWidth = 2;
-    for(let l=1;l<lanes;l++){
-      ctx.beginPath();
-      ctx.moveTo(x+l*laneWidth*perspective, y);
-      ctx.lineTo(x+l*laneWidth*perspective, y+perspective*trackHeight);
-      ctx.stroke();
+class Character {
+  constructor(x, y, color, isBot=false) {
+    this.x = x;
+    this.y = y;
+    this.w = 40;
+    this.h = 80;
+    this.vx = 0;
+    this.vy = 0;
+    this.onGround = true;
+    this.color = color;
+    this.withBall = false;
+    this.isBot = isBot;
+    this.points = 0;
+  }
+
+  update() {
+    if (!this.isBot) {
+      // Player controls
+      if (keys["ArrowLeft"] || keys["a"]) this.vx = -3;
+      else if (keys["ArrowRight"] || keys["d"]) this.vx = 3;
+      else this.vx = 0;
+
+      if ((keys["ArrowUp"] || keys["w"] || keys[" "]) && this.onGround) {
+        this.vy = -8;
+        this.onGround = false;
+      }
+    } else {
+      // Bot AI
+      if (!this.withBall) {
+        if (ball.x < this.x) this.vx = -2;
+        else this.vx = 2;
+      } else {
+        if (random(1) < 0.01) {
+          ball.throw(this);
+          this.withBall = false;
+        }
+      }
+    }
+
+    // Movement
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.5; // gravity
+
+    if (this.y >= 300) {
+      this.y = 300;
+      this.vy = 0;
+      this.onGround = true;
+    }
+
+    // Ball pickup
+    if (dist(this.x, this.y, ball.x, ball.y) < 30 && !ball.heldBy) {
+      this.withBall = true;
+      ball.heldBy = this;
     }
   }
-}
 
-// Draw obstacles
-function drawObstacles(){
-  ctx.fillStyle="#e74c3c";
-  for(let o of obstacles){
-    const t = { z:o.z };
-    const perspective = 800/(t.z+50);
-    const trackW = laneWidth*lanes*perspective;
-    const x0 = canvas.width/2 - trackW/2;
-    const obsX = x0 + o.lane*laneWidth*perspective;
-    const y = canvas.height - perspective*50 - 50;
-    ctx.fillRect(obsX, y, laneWidth*perspective, perspective*trackHeight);
+  show() {
+    fill(this.color);
+    rect(this.x-20, this.y-60, this.w, this.h);
   }
 }
 
-// Draw ball
-function drawBall(){
-  const ballZ = 0;
-  const perspective = 800/(ballZ+50);
-  const trackW = laneWidth*lanes*perspective;
-  const x0 = canvas.width/2 - trackW/2;
-  const ballX = x0 + ball.lane*laneWidth*perspective + laneWidth*perspective/2;
-  const y = canvas.height - perspective*50 - 50 - 10*perspective;
-  
-  ctx.beginPath();
-  ctx.arc(ballX, y, 10*perspective, 0, Math.PI*2);
-  ctx.fillStyle="#3498db";
-  ctx.fill();
-}
-
-// Update game
-function update(){
-  ball.speed += 0.0005;
-  score += ball.speed;
-  
-  // Move obstacles
-  for(let o of obstacles){
-    o.z -= ball.speed*20;
+class Ball {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.heldBy = null;
+    this.lastHolder = null;
   }
-  
-  // Remove past obstacles
-  while(obstacles.length && obstacles[0].z<0) obstacles.shift();
-  
-  // Spawn new obstacles
-  if(Math.random()<0.03) spawnObstacle();
-  
-  // Collision detection
-  for(let o of obstacles){
-    if(Math.abs(o.z)<trackHeight && o.lane===ball.lane){
-      alert("Game Over! Score: "+Math.floor(score));
-      document.location.reload();
+
+  update() {
+    if (this.heldBy) {
+      this.x = this.heldBy.x;
+      this.y = this.heldBy.y - 30;
+      this.lastHolder = this.heldBy;
+    } else {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.4;
+      if (this.y > 310) {
+        this.y = 310;
+        this.vy = 0;
+      }
     }
   }
+
+  throw(holder) {
+    this.heldBy = null;
+    this.x = holder.x;
+    this.y = holder.y - 30;
+    this.vx = 5;
+    this.vy = -6;
+    this.lastHolder = holder;
+  }
+
+  show() {
+    fill(200);
+    ellipse(this.x, this.y, 15, 15);
+  }
 }
 
-// Draw everything
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawTrack();
-  drawObstacles();
-  drawBall();
+function resetBall() {
+  ball = new Ball(width/2, 300);
 }
 
-// Game loop
-function loop(){
-  update();
-  draw();
-  requestAnimationFrame(loop);
+function drawClassroom() {
+  // Desk
+  fill(180);
+  rect(700, 250, 60, 100);
+  // Trash can (hoop)
+  fill(100);
+  rect(target.x, target.y, target.w, target.h);
 }
-loop();
 
-// Controls
-window.addEventListener("keydown", e=>{
-  if(e.key==="ArrowLeft" && ball.lane>0) ball.lane--;
-  if(e.key==="ArrowRight" && ball.lane<lanes-1) ball.lane++;
-});
-
-window.addEventListener("resize", ()=>{
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
+function keyPressed() { keys[key] = true; }
+function keyReleased() { keys[key] = false; }
 </script>
 </body>
 </html>
