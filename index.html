@@ -8,28 +8,14 @@
 <body>
 <script>
 let player, bot, ball;
-let playerImgs = {}, botImgs = {};
 let keys = {};
 
 let target = {x:720, y:200, w:20, h:50}; // trash can hoop
 
-function preload() {
-  // Load your SVGs (keep them in same folder or host online)
-  playerImgs.idle = loadImage("costume1 (1).svg"); // standing with ball
-  playerImgs.run1 = loadImage("costume3.svg"); 
-  playerImgs.run2 = loadImage("costume4.svg"); 
-  playerImgs.shoot = loadImage("costume1 (1).svg"); // temp until arms-up edit
-
-  botImgs.idle = loadImage("costume1 (1).svg");
-  botImgs.run1 = loadImage("costume3.svg");
-  botImgs.run2 = loadImage("costume4.svg");
-  botImgs.shoot = loadImage("costume1 (1).svg");
-}
-
 function setup() {
   createCanvas(800, 400);
-  player = new Character(100, 300, playerImgs);
-  bot = new Character(500, 300, botImgs, true);
+  player = new Character(100, 300);
+  bot = new Character(500, 300, true);
   ball = new Ball(120, 300);
 }
 
@@ -70,7 +56,7 @@ function draw() {
 
 // --- CLASSES ---
 class Character {
-  constructor(x, y, imgs, isBot=false) {
+  constructor(x, y, isBot=false) {
     this.x = x;
     this.y = y;
     this.w = 40;
@@ -78,11 +64,9 @@ class Character {
     this.vx = 0;
     this.vy = 0;
     this.onGround = true;
-    this.imgs = imgs;
-    this.withBall = false;
     this.isBot = isBot;
     this.points = 0;
-    this.state = "idle";
+    this.withBall = false;
   }
 
   update() {
@@ -117,6 +101,7 @@ class Character {
       this.onGround = true;
     }
 
+    // auto-get ball
     if (dist(this.x, this.y, ball.x, ball.y) < 30 && !ball.heldBy) {
       this.withBall = true;
       ball.heldBy = this;
@@ -124,13 +109,8 @@ class Character {
   }
 
   show() {
-    let img;
-    if (this.state === "shoot" && this.withBall) img = this.imgs.shoot;
-    else if (this.vx !== 0) {
-      img = frameCount % 20 < 10 ? this.imgs.run1 : this.imgs.run2;
-    } else img = this.imgs.idle;
-
-    image(img, this.x-20, this.y-60, this.w, this.h);
+    fill(this.isBot ? "red" : "blue");
+    rect(this.x-20, this.y-60, this.w, this.h);
   }
 }
 
@@ -156,6 +136,12 @@ class Ball {
       if (this.y > 310) {
         this.y = 310;
         this.vy = 0;
+      }
+
+      // prevent ball from being stuck past trash can
+      if (this.x > width) {
+        this.x = width - 20;
+        this.vx = -this.vx * 0.5;
       }
     }
   }
