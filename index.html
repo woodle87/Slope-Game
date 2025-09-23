@@ -1,179 +1,219 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Classroom Basketball</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body { margin:0; background:#eee; }
+    canvas { background:#cce0ff; display:block; margin:auto; }
+  </style>
 </head>
 <body>
+<canvas id="game" width="900" height="500"></canvas>
 <script>
-let player, bot, ball;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
 let keys = {};
+document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keyup", e => keys[e.code] = false);
 
-let target = {x:720, y:200, w:20, h:50}; // trash can hoop
-
-function setup() {
-  createCanvas(800, 400);
-  player = new Character(100, 300);
-  bot = new Character(500, 300, true);
-  ball = new Ball(120, 300);
-}
-
-function draw() {
-  background(230);
-
-  drawClassroom();
-
-  player.update();
-  player.show();
-
-  bot.update();
-  bot.show();
-
-  ball.update();
-  ball.show();
-
-  // --- AUTO AIM SCORING ---
-  if (
-    !ball.heldBy &&
-    ball.x > target.x &&
-    ball.x < target.x + target.w &&
-    ball.y > target.y &&
-    ball.y < target.y + target.h
-  ) {
-    if (ball.lastHolder) {
-      ball.lastHolder.points++;
-    }
-    resetBall();
-  }
-
-  // Scoreboard
-  fill(0);
-  textSize(20);
-  textAlign(CENTER);
-  text(player.points + " - " + bot.points, width/2, 30);
-}
-
-// --- CLASSES ---
-class Character {
-  constructor(x, y, isBot=false) {
+class Player {
+  constructor(x, color, isBot=false) {
     this.x = x;
-    this.y = y;
-    this.w = 40;
-    this.h = 80;
+    this.y = 400;
     this.vx = 0;
     this.vy = 0;
+    this.width = 40;
+    this.height = 80;
+    this.color = color;
     this.onGround = true;
     this.isBot = isBot;
-    this.points = 0;
-    this.withBall = false;
+    this.holdingBall = false;
+    this.charge = 0;
   }
-
   update() {
     if (!this.isBot) {
-      if (keys["ArrowLeft"] || keys["a"]) this.vx = -3;
-      else if (keys["ArrowRight"] || keys["d"]) this.vx = 3;
+      if (keys["ArrowLeft"] || keys["KeyA"]) this.vx = -4;
+      else if (keys["ArrowRight"] || keys["KeyD"]) this.vx = 4;
       else this.vx = 0;
 
-      if ((keys["ArrowUp"] || keys["w"] || keys[" "]) && this.onGround) {
-        this.vy = -8;
+      if ((keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) && this.onGround) {
+        this.vy = -10;
         this.onGround = false;
       }
+
+      if (keys["ArrowDown"] || keys["KeyS"]) this.height = 60;
+      else this.height = 80;
+
+      if (this.holdingBall && keys["Space"]) {
+        this.charge = Math.min(this.charge + 0.2, 10);
+      } else if (this.holdingBall && this.charge > 0) {
+        ball.holder = null;
+        ball.vx = this.charge * 2;
+        ball.vy = -this.charge;
+        ball.x = this.x + this.width;
+        ball.y = this.y;
+        this.charge = 0;
+        this.holdingBall = false;
+      }
     } else {
-      if (!this.withBall) {
+      if (!this.holdingBall) {
         if (ball.x < this.x) this.vx = -2;
-        else this.vx = 2;
+        else if (ball.x > this.x) this.vx = 2;
+        else this.vx = 0;
       } else {
-        if (random(1) < 0.01) {
-          ball.throw(this);
-          this.withBall = false;
+        this.charge += 0.2;
+        if (this.charge >= 5) {
+          ball.holder = null;
+          ball.vx = this.charge * 2;
+          ball.vy = -this.charge;
+          ball.x = this.x + this.width;
+          ball.y = this.y;
+          this.charge = 0;
+          this.holdingBall = false;
         }
       }
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
     this.vy += 0.5;
-
-    if (this.y >= 300) {
-      this.y = 300;
+    this.y += this.vy;
+    if (this.y >= 400) {
+      this.y = 400;
       this.vy = 0;
       this.onGround = true;
     }
 
-    // auto-get ball
-    if (dist(this.x, this.y, ball.x, ball.y) < 30 && !ball.heldBy) {
-      this.withBall = true;
-      ball.heldBy = this;
+    this.x += this.vx;
+    if (this.x < 0) this.x = 0;
+    if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+
+    if (!ball.holder &&
+        ball.x < this.x + this.width &&
+        ball.x + ball.size > this.x &&
+        ball.y < this.y + this.height &&
+        ball.y + ball.size > this.y) {
+      this.holdingBall = true;
+      ball.holder = this;
     }
   }
-
-  show() {
-    fill(this.isBot ? "red" : "blue");
-    rect(this.x-20, this.y-60, this.w, this.h);
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    if (this.charge > 0) {
+      ctx.strokeStyle = "black";
+      ctx.beginPath();
+      ctx.moveTo(this.x+this.width/2, this.y);
+      ctx.lineTo(this.x+this.width/2 + this.charge*10, this.y - this.charge*5);
+      ctx.stroke();
+    }
   }
 }
 
 class Ball {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
+  constructor() {
+    this.x = 200;
+    this.y = 200;
     this.vx = 0;
     this.vy = 0;
-    this.heldBy = null;
-    this.lastHolder = null;
+    this.size = 20;
+    this.holder = null;
   }
-
   update() {
-    if (this.heldBy) {
-      this.x = this.heldBy.x;
-      this.y = this.heldBy.y - 30;
-      this.lastHolder = this.heldBy;
+    if (this.holder) {
+      this.x = this.holder.x + this.holder.width/2 - this.size/2;
+      this.y = this.holder.y - this.size;
     } else {
+      this.vy += 0.5;
       this.x += this.vx;
       this.y += this.vy;
-      this.vy += 0.4;
-      if (this.y > 310) {
-        this.y = 310;
-        this.vy = 0;
+
+      if (this.y + this.size > 480) {
+        this.y = 480 - this.size;
+        this.vy *= -0.5;
+        this.vx *= 0.7;
       }
 
-      // prevent ball from being stuck past trash can
-      if (this.x > width) {
-        this.x = width - 20;
-        this.vx = -this.vx * 0.5;
+      if (this.x < 0 || this.x + this.size > canvas.width) {
+        this.vx *= -0.5;
+      }
+
+      if (this.x > canvas.width) {
+        this.reset();
       }
     }
-  }
 
-  throw(holder) {
-    this.heldBy = null;
-    this.x = holder.x;
-    this.y = holder.y - 30;
-    this.vx = 5;
-    this.vy = -6;
-    this.lastHolder = holder;
+    // --- AUTO AIM HOOP CHECK ---
+    if (this.x + this.size/2 > 840 && this.x + this.size/2 < 880 &&
+        this.y + this.size/2 > 340 && this.y + this.size/2 < 380) {
+      scorePoint(this.holder ? this.holder : lastShooter);
+      this.reset();
+    }
   }
-
-  show() {
-    fill(200);
-    ellipse(this.x, this.y, 15, 15);
+  reset() {
+    this.x = 450;
+    this.y = 200;
+    this.vx = 0;
+    this.vy = 0;
+    this.holder = null;
+  }
+  draw() {
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size/2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "gray";
+    ctx.stroke();
   }
 }
 
-function resetBall() {
-  ball = new Ball(width/2, 300);
+let player = new Player(100, "blue");
+let bot = new Player(300, "red", true);
+let ball = new Ball();
+
+let scores = { player:0, bot:0 };
+let lastShooter = null;
+
+function scorePoint(who) {
+  if (who === player) scores.player++;
+  else if (who === bot) scores.bot++;
+  lastShooter = who;
+  if (scores.player >= 7 || scores.bot >= 7) {
+    alert((scores.player>=7 ? "You win!" : "Bot wins!") + " Refresh to play again.");
+  }
 }
 
-function drawClassroom() {
-  fill(180);
-  rect(700, 250, 60, 100); // table
-  fill(100);
-  rect(target.x, target.y, target.w, target.h); // trash can
+function drawCourt() {
+  ctx.fillStyle = "#ffe4b5";
+  ctx.fillRect(0, 480, canvas.width, 20);
+
+  ctx.fillStyle = "gray";
+  ctx.fillRect(840, 340, 40, 40); // trash can
+  ctx.fillStyle = "#deb887";
+  ctx.fillRect(820, 380, 80, 20); // table
 }
 
-function keyPressed() { keys[key] = true; }
-function keyReleased() { keys[key] = false; }
+function loop() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  drawCourt();
+
+  player.update();
+  bot.update();
+  ball.update();
+
+  player.draw();
+  bot.draw();
+  ball.draw();
+
+  ctx.fillStyle = "black";
+  ctx.fillText("Player: " + scores.player, 20, 20);
+  ctx.fillText("Bot: " + scores.bot, 20, 40);
+
+  requestAnimationFrame(loop);
+}
+
+loop();
 </script>
 </body>
 </html>
